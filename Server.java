@@ -26,7 +26,7 @@ public class Server {
 
 
                 //指定の人数以上入室したらゲーム開始
-                int requiredNumber = 1;
+                int requiredNumber = 2;
                 if(clients.size() >= requiredNumber) {
                     gamestart();
                     break;
