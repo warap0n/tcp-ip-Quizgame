@@ -1,23 +1,32 @@
+package tcp_ip_Quizgame;
+
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class Server {
     private static final int PORT = 12345;
     private List<ClientHandler> clients;
+    private List<ClientHandler> corrects; //正解者だけのリスト
 
     public Server() {
         clients = new ArrayList<>();
+        corrects = new ArrayList<>();
     }
 
     public void start() {
         try {
             ServerSocket serverSocket = new ServerSocket(PORT);
             System.out.println("Server started on port " + PORT);
+            Scanner scanner = new Scanner(System.in);
+            System.out.println("参加人数を指定してください");
+            int requiredNumber = scanner.nextInt();
 
             while (true) {
+
+                System.out.println("待機中　現在　" + clients.size() + "　人入室しています。");
                 Socket clientSocket = serverSocket.accept();
 
                 ClientHandler clientHandler = new ClientHandler(clientSocket, this, clients);
@@ -26,11 +35,12 @@ public class Server {
 
 
                 //指定の人数以上入室したらゲーム開始
-                int requiredNumber = 2;
                 if(clients.size() >= requiredNumber) {
                     gamestart();
-                    break;
+                    clients.clear();  //参加者リセット
+                    corrects.clear(); //正解者リセット
                 }
+
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -38,24 +48,33 @@ public class Server {
     }
 
     public void gamestart() {
+        int digit = 2; //1なら一桁、2なら二桁
+        String kind = "+" ; //四則演算の種類
         for(ClientHandler client : clients) {
+            client.setDigitAndKind(digit,kind);
             client.start();
         }
         System.out.println("GAME START");
         //全員答え終わるまで待機
-        while(true) {
-            if(allFinished()){
-                break;
-            }
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            while (true) {
+                if (allFinished()) {
+                    break;
+                }
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
 
-        }
-        int winnerIndex = judgeWinner();
-        sendResult(winnerIndex);
+            }
+            for (ClientHandler client : clients) { //正解してるものだけをcorrectsに追加
+                if (client.getCorrect()) {
+                    corrects.add(client);
+                }
+            }
+            Collections.sort(corrects); //解答時間で昇順にソートしている
+            sendResult();
+            showRanking();
     }
 
     public boolean allFinished() {
@@ -65,29 +84,19 @@ public class Server {
         }
         return count == clients.size();
     }
-
-    public int judgeWinner() {
-        long[] resultTime = new long[clients.size()];
-        long min = clients.get(0).getAnswerTime();
-        int winnerIndex = 0;
-        int i;
-        for(i = 1; i < clients.size(); i++){
-            resultTime[i] = clients.get(i).getAnswerTime();
-            if(min > resultTime[i]){
-                min = resultTime[i];
-                winnerIndex = i;
-            }
+    public void showRanking(){
+        for(ClientHandler client : corrects){
+            System.out.println(client.getRank()+"位"+" : "+client.getClientName());
         }
-        return winnerIndex;
     }
 
-    public void sendResult(int winnerIndex) {
-        for(int i = 0; i < clients.size(); i++) {
-            if(winnerIndex == i) {
-                clients.get(i).sendMessage("あなたの勝利です");
-            } else {
-                clients.get(i).sendMessage("あなたの負けです");
-            }
+
+    public void sendResult() {
+        for(int i = 0; i < corrects.size(); i++){
+            corrects.get(i).setRanking(corrects);
+        }
+        for(ClientHandler client: corrects){
+            client.sendMessage(client.getClientName()+"は"+client.getRank()+"位です。");
         }
     }
     public static void main(String[] args) {
